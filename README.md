@@ -11,8 +11,9 @@ matplotlib
 ## Run
 Type in 
 ```
-$ python ./main.py to run this toy demo
+$ python ./main.py 
 ```
+to run this toy demo
 
 Then you will see the following:
 
