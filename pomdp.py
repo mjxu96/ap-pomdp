@@ -34,13 +34,31 @@ class avPOMDP:
         self.y_scan_range_2 = []
         self.now_time = -1
         self.scan_angle = []
+        self.scan_angle_goal = []
         self.gaussian_sigma = gaussian_sigma
         
         self.drawInitialization()
         
-    def update(self, input_data, scan_angle):
+    def update(self, input_data, scan_angle_goal):
         self.now_time += 1
-        self.scan_angle.append(scan_angle)
+        #self.scan_angle.append(scan_angle_goal)
+        if (len(self.scan_angle) == 0):
+            self.scan_angle.append(90)
+        else:
+            last_angle = self.scan_angle[-1]
+            if (scan_angle_goal >= last_angle):
+                if (scan_angle_goal-last_angle > self.max_range-\
+                    (scan_angle_goal-last_angle)):
+                    self.scan_angle.append((last_angle-5)%self.max_range)
+                else:
+                    self.scan_angle.append((last_angle+5)%self.max_range)
+            else:
+                if (last_angle-scan_angle_goal > self.max_range-\
+                    (last_angle-scan_angle_goal)):
+                    self.scan_angle.append((last_angle+5)%self.max_range)
+                else:
+                    self.scan_angle.append((last_angle-5)%self.max_range)
+        self.scan_angle_goal.append(scan_angle_goal)
         if (input_data != None):
             (alpha, distance) = input_data
             self.addPoint(alpha, distance, self.now_time)
@@ -78,7 +96,7 @@ class avPOMDP:
                     point[3] = 1
         return
         
-    def updatePredictionDistribution(self, sigma_expand_cof=1.05):
+    def updatePredictionDistribution(self, sigma_expand_cof=1.0):
         self.y_pred = np.ones((self.max_range, 1)) / self.max_range
         for point in self.points:
             if (point[3] == 1):
@@ -92,7 +110,9 @@ class avPOMDP:
                     coff = 0.1/point[1]
                     self.y_pred[x] += self.calculateGaussian(x, mu, 
                                sigma, coff)
-        self.y_pred = self.y_pred / np.sum(self.y_pred)
+                    
+        # Newly added version
+        
         return
     
     def updateScanAngelDistribution(self):
@@ -107,6 +127,23 @@ class avPOMDP:
                            np.sum(self.y_pred[left_bnd: self.max_range]))
             else:
                 self.y_scan[x] += np.sum(self.y_pred[left_bnd: right_bnd])
+        m = 1.1
+        n = 1.0
+        epsilon = 1e-3
+        last_angle_goal = self.scan_angle_goal[-1]
+        last_angle = self.scan_angle[-1]
+        
+        for i in range(self.max_range):
+            distance = min(abs(i-last_angle_goal), abs(self.max_range-(i- \
+                           last_angle_goal)))
+            coef = min(abs(i-last_angle), abs(self.max_range-(i- \
+                           last_angle)))
+#==============================================================================
+#             coef = 1            
+#==============================================================================
+            self.y_scan[i] = coef**20 * ((self.y_scan[i]*100)**20) / \
+                           ((distance + epsilon)**3)
+        
         self.y_scan = self.y_scan / np.sum(self.y_scan)
         return
     
@@ -140,7 +177,7 @@ class avPOMDP:
         self.fig_gt = self.fig.add_subplot(221)
         self.fig_pred = self.fig.add_subplot(222)
         self.fig_scan = self.fig.add_subplot(223)
-        self.fig_gt.set_title("Ground Truth")
+        self.fig_gt.set_title("Truth")
         self.fig_pred.set_title("Prob of prediction")
         self.fig_scan.set_title("Prob of scan angle")
         self.line_pred, = self.fig_pred.plot(self.x, self.y_pred)
